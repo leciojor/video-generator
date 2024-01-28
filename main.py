@@ -11,9 +11,12 @@ def main():
         music_prompt = input("Music Prompt: ")
         plataform = input('Short Content Plataform  (OPTIONS: Shorts, Reels, TikTok) :')
         script_default = input("Special Script or Default? (OPTIONS: script, default)")
+        openai_key = input("Insert OpenAi key: ")
+        if script_default == "script":
+            script = input("Please give your desired narrative structure: ")
         word_amount = input("Amount of words: ")
 
-        video_file = video_formation(title, main_theme, script_default, word_amount, music_prompt)   
+        video_file = video_formation(title, main_theme, script_default, word_amount, music_prompt, script, openai_key)   
         uploading(video_file, plataform)
 
 
@@ -24,9 +27,9 @@ def main():
 
 
 
-def video_formation(title, main_theme, script_default, word_amount, music_prompt):
+def video_formation(title, main_theme, script_default, word_amount, music_prompt, script, openai_key):
     music = music_generation(music_prompt)
-    full_text = text_generation(title, main_theme, script_default, word_amount)
+    full_text = text_generation(title, main_theme, script_default, word_amount, script, openai_key)
     texts = full_text.split('.')
     texts = [title] + texts
 
@@ -92,19 +95,30 @@ def uploading(filename, plataform):
 def music_generation(music_prompt):
     pass
 
-def text_generation(title, main_theme, script_default, word_amount):
+def text_generation(title, main_theme, script_default, word_amount, script, openai_key):
     client = OpenAI(
-    api_key=os.environ.get("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"),
+    api_key=os.environ.get(openai_key),
     )
     
+    if script_default == "default":
+        response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",  
+        messages=[
+        {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
+        {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure. You cannot say more than {word_amount} words"},
+        ]
+        )
+    else:
+        response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",  
+        messages=[
+        {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
+        {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure. You cannot say more than {word_amount} words"},
+        ]
+        )
 
-    response = openai.ChatCompletion.create(
-    model="gpt-3.5-turbo",  
-    messages=[
-    {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
-    {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure. You cannot say more than {word_amount} words"},
-    ]
-    )
+    return response['choices'][0]['message']['content']
+
 
 def background_generation(text):
     pass
