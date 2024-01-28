@@ -2,7 +2,6 @@ from moviepy.editor import *
 from openai import OpenAI
 import googleapiclient
 from gtts import gTTS
-import os
 
 
 def main():
@@ -28,13 +27,37 @@ def main():
 def video_formation(title, main_theme, script_default, word_amount, music_prompt):
     music = music_generation(music_prompt)
     full_text = text_generation(title, main_theme, script_default, word_amount)
-    text = ""
-    for i in full_text:
-        if i == '.':
-            break
-            
+    texts = full_text.split('.')
 
-    background = background_generation(text)
+
+    frames = []
+    for text in texts:
+        background = background_generation(text)
+        speech = text_to_speech(text)
+        clip = VideoFileClip(background)  
+        txt_clip = TextClip(text, fontsize = 75, color = 'black') 
+        clipe = CompositeVideoClip([clip, txt_clip])
+        audioclip = AudioFileClip(speech)
+        frame = clip.set_audio(audioclip) 
+
+        frames.append(frame)  
+
+    
+    final_clip = concatenate_videoclips(frames)
+    music_audio = AudioFileClip(music)
+
+    final_video = final_clip.set_audio(music_audio)
+    final_video.write_videofile("output_video.mp4", codec="libx264", fps=24)
+
+
+
+def text_to_speech(text):
+    tts = gTTS(text=text, lang='en')
+    filename = "speech.mp3"
+    tts.save(filename)
+    return filename
+
+
 
 
 
@@ -53,13 +76,13 @@ def uploading(filename, plataform):
 
 
 
-def music_generation():
+def music_generation(music_prompt):
     pass
 
-def text_generation():
+def text_generation(title, main_theme, script_default, word_amount):
     pass
 
-def background_generation():
+def background_generation(text):
     pass
     
 
