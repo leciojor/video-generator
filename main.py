@@ -2,75 +2,98 @@ from moviepy.editor import *
 from openai import OpenAI
 import googleapiclient
 from gtts import gTTS
+from pydub import AudioSegment
+
 
 #debug
 #finish youtube API
 #implement music generation
-#implement rest of random mode (not having to answer all the other questions (just apis's, mode and word amoutn))
-#remove test keys
+#add voice specifications
+#add frame amount specification for each individual video unit
 
 
 def main():
     while True:
         while True:
-            mode = input("Choose mode: (OPTIONS: Random, Manual)")
+            mode = input("Choose mode: (OPTIONS: Random, Manual) : ")
             if mode != "Random" and mode != "Manual":
                 print("Invalid option")
             else:
                 break
-        title = input("Video title: ")
-        main_theme = input("Video main theme: ")
-        music_prompt = input("Music Prompt: ")
-        while True:
+        if mode != "Random":
+            title = input("Video title: ")
+            main_theme = input("Video main theme: ")
+            music_prompt = input("Music Prompt: ")
+            while True:
+                plataform = input('Short Content Plataform  (OPTIONS: Shorts, Reels, TikTok) : ')
+                if plataform != "Shorts" and plataform != "Reels" and plataform != "TikTok":
+                    print("Invalid option")
+                else:
+                    break
+            while True:
+                script_default = input("Special Script or Default? (OPTIONS: script, default) : ")
+                if script_default != "script" and script_default != "default":
+                    print("Invalid option")
+                else:
+                    break
+            openai_key = input("Insert OpenAi key: ")
+            script = ""
+            if script_default == "script":
+                script = input("Please give your desired narrative structure: ")
+            word_amount = input("Amount of words: (ONLY ACCEPTS INTEGERS) : ")
+
+            video_file = video_formation(title, main_theme, script_default, word_amount, music_prompt, script, openai_key, mode)   
+            if video_file is not None:
+                uploading(video_file, plataform_ = plataform)
+
+
+            
+            while True:
+                again = input("Again? (OPTIONS: yes, no) : " )
+                if again != "yes" and again != "no":
+                    print("Invalid option")
+                else:
+                    break
+            if again == "no":
+                break
+        else:
+            openai_key = input("Insert OpenAi key: ")
             plataform = input('Short Content Plataform  (OPTIONS: Shorts, Reels, TikTok) : ')
-            if plataform != "Shorts" and plataform != "Reels" and plataform != "TikTok":
-                print("Invalid option")
-            else:
+            video_file = video_formation(key = openai_key, mode_ = mode)
+            if video_file is not None:
+                uploading(video_file, plataform_ = plataform)
+            while True:
+                again = input("Again? (OPTIONS: yes, no) : ")
+                if again != "yes" and again != "no":
+                    print("Invalid option")
+                else:
+                    break
+            if again == "no":
                 break
-        while True:
-            script_default = input("Special Script or Default? (OPTIONS: script, default) : ")
-            if script_default != "script" and script_default != "default":
-                print("Invalid option")
-            else:
-                break
-        openai_key = input("Insert OpenAi key: ")
-        script = ""
-        if script_default == "script":
-            script = input("Please give your desired narrative structure: ")
-        word_amount = input("Amount of words: (ONLY ACCEPTS INTEGERS) : ")
-
-        video_file = video_formation(title, main_theme, script_default, word_amount, music_prompt, script, openai_key, mode)   
-        uploading(video_file, plataform)
-
-
-        
-        while True:
-            again = input("Again? (OPTIONS: yes, no) : " )
-            if again != "yes" and again != "no":
-                print("Invalid option")
-            else:
-                break
-        if again == "no":
-            break
 
 
 
 
 
-def video_formation(title, main_theme, script_default, word_amount, music_prompt, script, openai_key, mode):
+def video_formation(title = '', main_theme = '', script_default = '', word_amount = 0, music_prompt = '', script = '', key = '', mode_ = ''):
     music = music_generation(music_prompt)
-    full_text = text_generation(title, main_theme, script_default, word_amount, script, openai_key, mode)
+    full_text = text_generation(title, main_theme, script_default, word_amount, script, key, mode_)
+    if full_text == None:
+        return None
     texts = full_text.split('.')
     texts = [title] + texts
 
 
     frames = []
     for text in texts:
-        background = background_generation(text)
         speech = text_to_speech(text)
+        speech_duration = get_audio_duration(speech)
+        background = background_generation(text, key, speech_duration)
+        if background == None:
+            return None
         clip = VideoFileClip(background)  
         txt_clip = TextClip(text, fontsize = 75, color = 'black') 
-        clipe = CompositeVideoClip([clip, txt_clip])
+        clip = CompositeVideoClip([clip, txt_clip])
         audioclip = AudioFileClip(speech)
         frame = clip.set_audio(audioclip) 
 
@@ -78,12 +101,20 @@ def video_formation(title, main_theme, script_default, word_amount, music_prompt
 
     
     final_clip = concatenate_videoclips(frames)
-    music_audio = AudioFileClip(music)
+    #music_audio = AudioFileClip(music)
 
-    final_video = final_clip.set_audio(music_audio)
-    final_video.write_videofile("final_video.mp4", codec="libx264", fps=24)
+    #final_clip = final_clip.set_audio(music_audio)
+    final_clip.write_videofile("final_video.mp4", codec="libx264", fps=24)
     filename = "final_video.mp4"
     return filename
+
+
+
+def get_audio_duration(audio_file_path):
+    audio = AudioSegment.from_file(audio_file_path)
+    duration_in_seconds = len(audio) / 1000.0  
+    return duration_in_seconds
+
 
 
 
@@ -99,7 +130,7 @@ def text_to_speech(text):
 
 
 
-def uploading(filename, plataform):
+def uploading(filename, plataform = ''):
     while True:
         review = input("Preview video first? (OPTIONS: yes, no) : ")
         if review != "yes" and review != "no":
@@ -136,69 +167,77 @@ def music_generation(music_prompt):
 
 def text_generation(title, main_theme, script_default, word_amount, script, openai_key, mode):
     client = OpenAI(
-        #api_key=os.environ.get(openai_key)
-    api_key=os.environ.get("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")
+        api_key=openai_key
     )
 
-    
+    try:
 
+        if mode == "Random":
+            response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  
+            messages=[
+            {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
+            {"role": "user", "content": f"Please make a video about a random topic but just give your lines without any script structure element. You cannot say more than {word_amount} words and should start with a main title"},
+            ]
+            )
+        elif script_default == "default":
+            response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  
+            messages=[
+            {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
+            {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure element. You cannot say more than {word_amount} words"},
+            ]
+            )
+        else:
+            response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  
+            messages=[
+            {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
+            {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure element. You cannot say more than {word_amount} words. Also, please follow the following structure: {script}"},
+            ]
+            )
 
-    if mode == "Random":
-        response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  
-        messages=[
-        {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
-        {"role": "user", "content": f"Please make a video about a random topic but just give your lines without any script structure element. You cannot say more than {word_amount} words"},
-        ]
-        )
-    elif script_default == "default":
-        response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  
-        messages=[
-        {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
-        {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure element. You cannot say more than {word_amount} words"},
-        ]
-        )
-    else:
-        response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  
-        messages=[
-        {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
-        {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure element. You cannot say more than {word_amount} words. Also, please follow the following structure: {script}"},
-        ]
-        )
+    except OpenAI.RateLimitError as limit:
+        print("You have insufficient OpenAI credits for generating this video. Please add more at https://platform.openai.com/usage")
+        return None
 
     return response['choices'][0]['message']['content']
 
 
-def background_generation(text):
+def background_generation(text, key, duration):
 
-    client = OpenAI(
-        #api_key=os.environ.get(openai_key)
-    api_key=os.environ.get("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")
-    )
+    try:
 
-    response = client.images.generate(
-    model="dall-e-3",
-    prompt= text,
-    size="1024x1024",
-    quality="standard",
-    n=1,
-    )
+        model = "dall-e-3"
+        prompt = text
+        size = "1024x768"
+        quality = "standard"
+        num_frames = 10
 
+
+        client = OpenAI(
+            api_key = key
+        )
+
+
+        response = client.images.generate(
+        model=model,
+        prompt = f"Generate {num_frames} images of {prompt}, but as the same image, but in different positions (like video frames)"
+        size=size,
+        quality=quality,
+        n=num_frames,
+        )
+        
+        images_data = response['data']
+
+        images = [image_info['image'] for image_info in images_data]
+
+    except OpenAI.RateLimitError as limit:
+        print("You have insufficient OpenAI credits for generating this video. Please add more at https://platform.openai.com/usage")
+        return None
     
     
-
-
-    
-
-
-
-
-
-
-
-
+    return video_file
 
 
 
