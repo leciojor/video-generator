@@ -9,15 +9,15 @@ def main():
         title = input("Video title: ")
         main_theme = input("Video main theme: ")
         music_prompt = input("Music Prompt: ")
-        plataform = input('Short Content Plataform  ("Shorts", "Reels", "TikTok") :')
-        script_default = input("Special Script or Default? ")
+        plataform = input('Short Content Plataform  (OPTIONS: Shorts, Reels, TikTok) :')
+        script_default = input("Special Script or Default? (OPTIONS: script, default)")
         word_amount = input("Amount of words: ")
 
         video_file = video_formation(title, main_theme, script_default, word_amount, music_prompt)   
         uploading(video_file, plataform)
 
 
-        again = input("Again? (yes, no)" )
+        again = input("Again? (OPTIONS: yes, no)" )
         if again == "no":
             break
 
@@ -28,6 +28,7 @@ def video_formation(title, main_theme, script_default, word_amount, music_prompt
     music = music_generation(music_prompt)
     full_text = text_generation(title, main_theme, script_default, word_amount)
     texts = full_text.split('.')
+    texts = [title] + texts
 
 
     frames = []
@@ -47,7 +48,10 @@ def video_formation(title, main_theme, script_default, word_amount, music_prompt
     music_audio = AudioFileClip(music)
 
     final_video = final_clip.set_audio(music_audio)
-    final_video.write_videofile("output_video.mp4", codec="libx264", fps=24)
+    final_video.write_videofile("final_video.mp4", codec="libx264", fps=24)
+    filename = "final_video.mp4"
+    return filename
+
 
 
 
@@ -63,7 +67,7 @@ def text_to_speech(text):
 
 
 def uploading(filename, plataform):
-    review = input("Preview video first? (yes, no)")
+    review = input("Preview video first? (OPTIONS: yes, no)")
     if review == "yes":
         clip = VideoFileClip(filename) 
         clip.preview(fps = 20) 
@@ -73,6 +77,15 @@ def uploading(filename, plataform):
     keywords = input("Video Keywords: ")
     privacy = input("Video privacy status: (private, public)")
     category = "22"
+    if plataform == "Shorts":
+        pass
+
+
+    elif plataform == "Reels":
+        print("Reels is not an available plataform yet")
+    elif plataform == "TikTok":
+        print("TikTok is not an available plataform yet")
+
 
 
 
@@ -80,7 +93,18 @@ def music_generation(music_prompt):
     pass
 
 def text_generation(title, main_theme, script_default, word_amount):
-    pass
+    client = OpenAI(
+    api_key=os.environ.get("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"),
+    )
+    
+
+    response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",  
+    messages=[
+    {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
+    {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure. You cannot say more than {word_amount} words"},
+    ]
+    )
 
 def background_generation(text):
     pass
@@ -90,15 +114,7 @@ def background_generation(text):
     
 
 
-    client = OpenAI(
-    api_key=os.environ.get("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"),
-    )
     
-
-    chat_completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": "Hello world"}]
-    )
 
 
 
