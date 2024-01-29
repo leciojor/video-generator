@@ -1,18 +1,24 @@
 from moviepy.editor import *
 from openai import OpenAI
+from openai import RateLimitError
+import cv2
 import googleapiclient
 from gtts import gTTS
-from pydub import AudioSegment
 from PIL import Image
 import io
+import os
+import numpy as np
+import subprocess
 
 
 
-#debugging
+
 #finish youtube API
 #implement music generation
 #add voice specifications - maybe
-#add logic for only allowing the right data type on integer cases
+#add exception handling for when user gives wrong datatype
+#implement text over video
+#setup google's API input
 
 
 def main():
@@ -43,10 +49,9 @@ def main():
             script = ""
             if script_default == "script":
                 script = input("Please give your desired narrative structure: ")
-            fps = input("Please give your desired fps (Please have in mind this will affect the video final price) : ")
-            word_amount = input(f" Average word - price ratio: {((fps * (0.6)) * 0.02) + 0.02} dollar per word \n Amount of words: (ONLY ACCEPTS INTEGERS) : " )
-            average_price = (((fps * (0.6)) * 0.02) + 0.02)*word_amount
-
+            fps = int(input("Please give your desired fps (Please have in mind this will affect the video final price) : "))
+            word_amount = float(input(f" Average word - price ratio: {((fps * (0.6)) * 0.018) + 0.02} dollar per word \n Amount of words: (ONLY ACCEPTS INTEGERS) : " ))
+            average_price = (((fps * (0.6)) * 0.018) + 0.02)*word_amount
 
 
             price = average_price
@@ -61,7 +66,13 @@ def main():
 
                 video_file = video_formation(title, main_theme, script_default, word_amount, music_prompt, script, openai_key, mode, fps)   
                 if video_file is not None:
-                    uploading(video_file, plataform_ = plataform)
+                    uploading(video_file, plataform_ = plataform, fps_ = fps)
+                    while True:
+                        again = input("Again? (OPTIONS: yes, no) : " )
+                        if again != "yes" and again != "no":
+                            print("Invalid option")
+                        else:
+                            break
 
             else:
                 while True:
@@ -82,9 +93,9 @@ def main():
                 else:
                     break
             
-            fps = input("Please give your desired fps (Please have in mind this will affect the video final price) : ")
-            word_amount = input(f" Average word - price ratio: {((fps * (0.6)) * 0.02) + 0.02} dollar per word \n Amount of words: (ONLY ACCEPTS INTEGERS) : " )
-            average_price = (((fps * (0.6)) * 0.02) + 0.02)*word_amount
+            fps = int(input("Please give your desired fps (Limited range from 1 to 4) (Please have in mind this will affect the video final price) : "))
+            word_amount = int(input(f" Average word - price ratio: {((fps * (0.6)) * 0.018) + 0.02} dollar per word \n Amount of words: (ONLY ACCEPTS INTEGERS) : " ))
+            average_price = (((fps * (0.6)) * 0.018) + 0.02)*float(word_amount)
 
 
 
@@ -98,9 +109,18 @@ def main():
 
             if proceed == "yes":
 
-                video_file = video_formation(key = openai_key, mode_ = mode)
+                video_file = video_formation(key = openai_key, mode_ = mode, word_amount_= word_amount, fps_ = fps)
                 if video_file is not None:
-                    uploading(video_file, plataform_ = plataform)
+                    uploading(video_file, plataform_ = plataform, fps_ = fps)
+                    while True:
+                        again = input("Again? (OPTIONS: yes, no) : " )
+                        if again != "yes" and again != "no":
+                            print("Invalid option")
+                        else:
+                            break
+                if again == "no":
+                    break
+                    
             else:
                 while True:
                     again = input("Again? (OPTIONS: yes, no) : " )
@@ -114,25 +134,28 @@ def main():
 
 
 
-def video_formation(title = '', main_theme = '', script_default = '', word_amount = 0, music_prompt = '', script = '', key = '', mode_ = '', fps = 0):
+def video_formation(title = '', main_theme = '', script_default = '', word_amount_ = 0, music_prompt = '', script = '', key = '', mode_ = '', fps_ = 0):
     music = music_generation(music_prompt)
-    full_text = text_generation(title, main_theme, script_default, word_amount, script, key, mode_)
+    full_text = text_generation(title, main_theme, script_default, word_amount_, script, key, mode_)
     if full_text == None:
         return None
     texts = full_text.split('.')
-    texts = [title] + texts
+    if title != '':
+        texts = [title] + texts
+    else:
+        texts = texts
 
 
     frames = []
     for text in texts:
         speech = text_to_speech(text)
         speech_duration = get_audio_duration(speech)
-        background = background_generation(text, key, speech_duration, fps)
+        background = background_generation( text, key, speech_duration, fps_)
         if background == None:
             return None
         clip = VideoFileClip(background)  
-        txt_clip = TextClip(text, fontsize = 75, color = 'black') 
-        clip = CompositeVideoClip([clip, txt_clip])
+        #txt_clip = TextClip(text, fontsize = 75, color = 'black') 
+        #clip = CompositeVideoClip([clip, txt_clip])
         audioclip = AudioFileClip(speech)
         frame = clip.set_audio(audioclip) 
 
@@ -143,33 +166,37 @@ def video_formation(title = '', main_theme = '', script_default = '', word_amoun
     #music_audio = AudioFileClip(music)
 
     #final_clip = final_clip.set_audio(music_audio)
-    final_clip.write_videofile("final_video.mp4", codec="libx264", fps=fps)
+    final_clip.write_videofile("final_video.mp4", codec="libx264", fps=fps_)
     filename = "final_video.mp4"
     return filename
 
 
 
-def get_audio_duration(audio_file_path):
-    audio = AudioSegment.from_file(audio_file_path, slow=False)
-    duration_in_seconds = len(audio) / 1000.0  
-    return duration_in_seconds
+def get_audio_duration(file_path):
+    audio_clip = AudioFileClip(file_path)
+
+    duration_seconds = audio_clip.duration
+
+    return int(duration_seconds)
 
 
 
 
 
-def text_to_speech(text):
-    tts = gTTS(text=text, lang='en')
+
+def text_to_speech(text_):
+    tts = gTTS(text=text_, lang='en')
     filename = "speech.mp3"
     tts.save(filename)
-    return filename
+    file_path = os.path.abspath("speech.mp3")
+    return file_path
 
 
 
 
 
 
-def uploading(filename, plataform = ''):
+def uploading(filename, plataform_ = '', fps_ = 0):
     while True:
         review = input("Preview video first? (OPTIONS: yes, no) : ")
         if review != "yes" and review != "no":
@@ -178,20 +205,30 @@ def uploading(filename, plataform = ''):
             break
     if review == "yes":
         clip = VideoFileClip(filename) 
-        clip.preview(fps = fps) 
-
-    title = input("Video title: ")
-    description = input("Video description: ")
-    keywords = input("Video Keywords: ")
-    privacy = input("Video privacy status: (private, public)")
-    category = "22"
-    if plataform == "Shorts":
-        pass
+        clip.preview(fps = fps_) 
 
 
-    elif plataform == "Reels":
+    if plataform_ == "Shorts":
+        title = input("Video title: ")
+        description = input("Video description: ")
+        keywords = input("Video Keywords: ")
+        privacy = input("Video privacy status: (private, public)")
+        category = "22"
+        command = ["python", "upload_video.py",
+           f"--file={filename}",
+           f"--title={title}",
+           f"--description={description}",
+           f"--keywords={keywords}",
+           f"--category={category}",
+           f"--privacyStatus={privacy}"]
+
+        subprocess.run(command)
+
+
+
+    elif plataform_ == "Reels":
         print("Reels is not an available plataform yet")
-    elif plataform == "TikTok":
+    elif plataform_ == "TikTok":
         print("TikTok is not an available plataform yet")
 
 
@@ -213,15 +250,17 @@ def text_generation(title, main_theme, script_default, word_amount, script, open
 
         if mode == "Random":
             response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  
+            model="gpt-3.5-turbo",
+            max_tokens=int(word_amount),  
             messages=[
             {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
-            {"role": "user", "content": f"Please make a video about a random topic but just give your lines without any script structure element. You cannot say more than {word_amount} words and should start with a main title"},
+            {"role": "user", "content": f"Please make a video about a random topic but just give your lines without any script structure element. You cannot say more than {word_amount} words"},
             ]
             )
         elif script_default == "default":
             response = client.chat.completions.create(
             model="gpt-3.5-turbo",  
+            max_tokens=int(word_amount),
             messages=[
             {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
             {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure element. You cannot say more than {word_amount} words"},
@@ -230,17 +269,23 @@ def text_generation(title, main_theme, script_default, word_amount, script, open
         else:
             response = client.chat.completions.create(
             model="gpt-3.5-turbo",  
+            max_tokens=int(word_amount),
             messages=[
             {"role": "system", "content": "You are a short content youtuber talking about" + main_theme},
             {"role": "user", "content": f"Please make a video about {main_theme} but just give your lines without any script structure element. You cannot say more than {word_amount} words. Also, please follow the following structure: {script}"},
             ]
             )
 
-    except OpenAI.RateLimitError as limit:
+        final_response = response.choices[0].message.content
+        print("Script text: ")
+        print(final_response)
+
+        return final_response
+    
+    except RateLimitError as limit:
         print("You have insufficient OpenAI credits for generating this video. Please add more at https://platform.openai.com/usage")
         return None
 
-    return response['choices'][0]['message']['content']
 
 
 def background_generation(text, key, duration, fps):
@@ -249,9 +294,9 @@ def background_generation(text, key, duration, fps):
 
         model = "dall-e-2"
         prompt = text
-        size = "1024x768"
+        size = "512x512"
         quality = "standard"
-        num_frames = fps * duration
+        num_frames = int(fps * duration)
 
 
         client = OpenAI(
@@ -261,29 +306,26 @@ def background_generation(text, key, duration, fps):
 
         response = client.images.generate(
         model=model,
-        prompt = f"Generate {num_frames} images of {prompt}, but as the same image, but in different positions (like video frames)"
+        prompt = f"Generate {num_frames} images of {prompt}, but as the same image, but in different positions (like video frames)", 
         size=size,
         quality=quality,
         n=num_frames,
         )
         
-        images_data = response['data']
+        images_data = response.data
 
-        images = [image_info['image'] for image_info in images_data]
+        images = [ image_info.url for image_info in images_data]
 
-    except OpenAI.RateLimitError as limit:
+    except RateLimitError as limit:
         print("You have insufficient OpenAI credits for generating this video. Please add more at https://platform.openai.com/usage")
         return None
     
 
-    final_images = []
-    for image in images:
-        pil_image = Image.open(io.BytesIO(image))
-        pil_image.append(final_images)
 
-    base_video = VideoFileClip("blank_video.mp4", duration=duration)
-    for image in final_images:
-        image_clip = ImageClip("image1.jpg", duration=duration/num_frames)
+    base_video = ColorClip(size=(512, 512), color=(255, 255, 255), duration=duration)
+    base_video.write_videofile("blank_video.mp4", codec="libx264", fps=fps)
+    for image in images:
+        image_clip = ImageClip(image, duration=duration/num_frames)
         base_video = concatenate_videoclips([image_clip, base_video])
 
     base_video.write_videofile("output_video.mp4", codec="libx264", fps=fps)
