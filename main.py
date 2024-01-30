@@ -306,7 +306,7 @@ def background_generation(text, key, duration, fps):
 
         response = client.images.generate(
         model=model,
-        prompt = f"Generate {num_frames} images of {prompt}, but as the same image, but in different positions (like video frames)", 
+        prompt = f"Generate {num_frames} images as frames of a video of {prompt}", 
         size=size,
         quality=quality,
         n=num_frames,
