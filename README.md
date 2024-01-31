@@ -1,0 +1,1 @@
+Short content video generator that does API calls on the OPENAI API(dall e for background images and ChatGPT for script), GOOGLE TRANSLATE API(for video speach), and soon Instagram, Youtube, and TikTok API for publishing the video. Other thing that is also not available in this first version is the music generation. However, it will be available soon! 
